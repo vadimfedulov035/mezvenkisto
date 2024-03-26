@@ -198,7 +198,7 @@ func getDurationSpeakersInfo(speakersDuration map[string]uint32) string {
 	return durationSpeakersInfo
 }
 
-// makes duration presentable and show result
+// makes duration presentable and shows result
 func getDurationInfo(timePeriod string, passingHourBarData map[string]int, speakersDuration map[string]uint32, durationTotal uint32) string {
 	var result string
 	var video string
@@ -238,6 +238,9 @@ func summarize(bot *tgbotapi.BotAPI, ChatID int64, timePeriod string, configName
 	participantsInfo := fmt.Sprintf("Voĉmesaĝistoj: %d\n", len(speakersDuration))
 	durationInfo := getDurationInfo(timePeriod, passingHourBarData, speakersDuration, durationTotal)
 	// unify summary
+	if timePeriod == "month" {
+		dateSummary = strings.Title(dateSummary)
+	}
 	summary := Hashtag + dateSummary + TimeExplanation + participantsInfo + durationInfo
 	// send summary message
 	msg := tgbotapi.NewMessage(ChatID, summary)
