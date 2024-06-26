@@ -5,7 +5,7 @@ Description=Telegram bot calculating voice message duration in Nova Esperantujo
 User=root
 Group=root
 WorkingDirectory=/etc/mezvenkisto
-ExecStart=/usr/local/bin/mezvenkisto 2>&1 | tee /var/tmp/mezvenkisto.tmp
+ExecStart=/usr/local/bin/mezvenkisto
 Restart=always
 RestartSec=3
 

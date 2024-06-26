@@ -1,7 +1,7 @@
 # Mezvenkisto
 ## Telegram bot calculating voice message duration in Nova Esperantujo
 
-![mezvenkisto](mezvenkisto.jpg)
+![cover](logo.jpg)
 
 ## Set up bot
 ```bash
