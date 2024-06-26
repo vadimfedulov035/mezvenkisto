@@ -328,7 +328,7 @@ func main() {
 	// every second check for time period passing
 	go func(reload chan<- bool) {
 		now := time.Now()
-		pDay, pMonth, pYear := now.Day(), now.Month(), now.Year()
+		pDay, pMonth, pYear := now.Day(), int(now.Month()), now.Year()
 		for {
 			newDate := false
 			var timePeriod string
@@ -336,7 +336,7 @@ func main() {
 			var dateSummary string
 			// get date info
 			now = time.Now()
-			day, month, year := now.Day(), now.Month(), now.Year()
+			day, month, year := now.Day(), int(now.Month()), now.Year()
 			// every day update month config, summarize and reset day config
 			if day != pDay {
 				log.Printf(NewDayLog, day, month, year)
