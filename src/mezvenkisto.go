@@ -98,10 +98,9 @@ func getName(msg *tgbotapi.Message) string {
 	return name
 }
 
+// get duration update
 func getUpdate(msg *tgbotapi.Message) Update {
-	// get name
 	name := getName(msg)
-	// get duration
 	d := 0
 	if msg.Voice != nil {
 		d = msg.Voice.Duration
@@ -116,7 +115,6 @@ func getUpdate(msg *tgbotapi.Message) Update {
 			d = msg.Video.Duration
 		}
 	}
-	// return
 	update := Update{
 		Name: name,
 		DurationU: uint32(d),
@@ -124,7 +122,7 @@ func getUpdate(msg *tgbotapi.Message) Update {
 	return update
 }
 
-// renew duration(s)
+// renew durations
 func renew(update Update, durations map[string]uint32, duration *uint32) {
 	var info string
 	// get name and duration update
@@ -146,6 +144,7 @@ func renew(update Update, durations map[string]uint32, duration *uint32) {
 	log.Println(info)
 }
 
+// convert duration to hours, minutes, seconds
 func calcTime(duration uint32) [3]int {
 	durationTime := time.Duration(duration) * time.Second
 	hours := int(durationTime.Hours())
@@ -155,6 +154,7 @@ func calcTime(duration uint32) [3]int {
 	return time
 }
 
+// decide what video should be shown (if any)
 func getVideo(duration uint32) string {
 	var video string
 	time := calcTime(duration)
@@ -169,20 +169,25 @@ func getVideo(duration uint32) string {
 	return video
 }
 
+// convert duration to human readable format
 func getSummary(duration uint32) string {
 	var summary string
 	time := calcTime(duration)
 	hours, minutes, seconds := time[0], time[1], time[2]
+	// for hours 00h 00m 00s
 	if hours != 0 {
 		summary = fmt.Sprintf(SummaryHr, hours, minutes, seconds)
+	// for minutes 00m 00s
 	} else if minutes != 0 {
 		summary = fmt.Sprintf(SummaryMin, minutes, seconds)
+	// for seconds 00s
 	} else {
 		summary = fmt.Sprintf(SummarySec, seconds)
 	}
 	return summary
 }
 
+// convert personal durations to human readable format
 func getSummaryPersonal(durations map[string]uint32) string {
 	var summaryPart, summaryPersonal string
 	// limit to maximum number of speakers
@@ -190,7 +195,7 @@ func getSummaryPersonal(durations map[string]uint32) string {
 	if len(durations) < SpeakersMaxNum {
 		speakersNum = len(durations)
 	}
-	// sort based on duration
+	// sort results based on duration
 	durationData := make([]DurationData, speakersNum)
 	for k, v := range durations {
 		durationDataU := DurationData{Name: k, Duration: v}
@@ -199,7 +204,7 @@ func getSummaryPersonal(durations map[string]uint32) string {
 	sort.Slice(durationData, func(i, j int) bool {
 		return durationData[i].Duration > durationData[j].Duration
 	})
-	// convert to human readable format
+	// convert results to human readable format
 	for i := 0; i < speakersNum; i++ {
 		name := durationData[i].Name
 		summaryPart = getSummary(durationData[i].Duration)
@@ -208,20 +213,27 @@ func getSummaryPersonal(durations map[string]uint32) string {
 	return summaryPersonal
 }
 
+// get summary
 func summarise(config string, date string) string {
+	// load durations from config
 	durations, duration := loadConfig(config)
+	// make durations human readable summaries
 	summaryT := getSummary(duration)
 	summaryP := getSummaryPersonal(durations)
+	// decide what video should be shown (if any)
 	video := getVideo(duration)
 	summary := date + " " + summaryT + "\n\n" + summaryP + "\n" + video
 	return summary
 }
 
+// load durations from config
 func loadConfig(config string) (map[string]uint32, uint32) {
 	var configData ConfigData
 	var durations map[string]uint32
 	var duration uint32
 	var info string
+	// log loading end
+	defer log.Println(info)
 	// load config data
 	file, _ := os.OpenFile(config, os.O_RDWR|os.O_CREATE, 0644)
 	file.Close()
@@ -239,11 +251,10 @@ func loadConfig(config string) (map[string]uint32, uint32) {
 	}
 	// load duration
 	duration = configData.Duration
-	// log loading end
-	log.Println(info)
 	return durations, duration
 }
 
+// save durations to config
 func saveConfig(config string, durations map[string]uint32, duration uint32) {
 	// write renewed config data to config
 	configData := ConfigData{
@@ -254,6 +265,7 @@ func saveConfig(config string, durations map[string]uint32, duration uint32) {
 	os.WriteFile(config, jsonData, 0644)
 }
 
+// update one config with durations from another (increment)
 func updateConfig(config string, configU string) {
 	// log update start and end
 	defer log.Printf("%s -> %s [✓]\n", config, configU)
@@ -270,6 +282,7 @@ func updateConfig(config string, configU string) {
 	saveConfig(configU, durationsOld, durationOld)
 }
 
+// reset durations in config
 func resetConfig(config string) {
 	// log reset end
 	defer log.Printf("%s <- 0\n", config)
