@@ -293,6 +293,19 @@ func resetConfig(config string) {
 	saveConfig(config, durations, duration)
 }
 
+func sendMessage(bot *tgbotapi.BotAPI, ChatID int64, text string) {
+	msg := tgbotapi.NewMessage(ChatID, text)
+	for {
+		_, err := bot.Send(msg)
+		if err != nil {
+			log.Println(err)
+			time.Sleep(FiveSeconds)
+		} else {
+			break
+		}
+	}
+}
+
 func main() {
 	// initialize bot
 	KeyAPI, ChatID := loadInitConfig(InitJSON)
@@ -312,9 +325,12 @@ func main() {
 	// initialize mutex
 	var mutex sync.Mutex
 	// initalize channel to reload config
-	reload := make(chan bool, 1)
+	reloadCh := make(chan bool)
+	newDateCh := make(chan bool)
+	// initalize summaies
+	var summaries [3]string
 	// every 60 seconds check for new message
-	go func(reload <-chan bool) {
+	go func(reloadCh <-chan bool) {
 		// load previous day data
 		config := configs["day"]
 		mutex.Lock()
@@ -323,7 +339,7 @@ func main() {
 		for update := range updates {
 			// reload day config on signal
 			select {
-			case <- reload:
+			case <- reloadCh:
 				mutex.Lock()
 				durations, duration = loadConfig(config)
 				mutex.Unlock()
@@ -341,14 +357,13 @@ func main() {
 				}
 			}
 		}
-	}(reload)
+	}(reloadCh)
 	// every second check for period passing
-	go func(reload chan<- bool) {
+	go func(newDateCh chan<- bool, reloadCh chan<- bool) {
 		now := time.Now()
 		pDay, pMonth, pYear := now.Day(), int(now.Month()), now.Year()
 		for {
 			newDate := false
-			var summary [3]string
 			var period, periodU string
 			var config, configU string
 			var date string
@@ -365,7 +380,7 @@ func main() {
 				configU = configs[periodU]
 				log.Printf(NewDayLog, day, month, year)
 				date = fmt.Sprintf(DateD, pDay, pMonth, pYear)
-				summary[0] = summarise(config, date)
+				summaries[0] = summarise(config, date)
 				mutex.Lock()
 				updateConfig(config, configU)
 				resetConfig(configs[period])
@@ -379,7 +394,7 @@ func main() {
 				configU = configs[periodU]
 				log.Printf(NewMonthLog, month, year)
 				date = fmt.Sprintf(DateM, pMonth, pYear)
-				summary[1] = summarise(config, date)
+				summaries[1] = summarise(config, date)
 				mutex.Lock()
 				updateConfig(config, configU)
 				resetConfig(config)
@@ -392,40 +407,36 @@ func main() {
 				config = configs[period]
 				log.Printf(NewYearLog, year)
 				date = fmt.Sprintf(DateY, pYear)
-				summary[2] = summarise(config, date)
+				summaries[2] = summarise(config, date)
 				mutex.Lock()
 				resetConfig(config)
 				mutex.Unlock()
 			}
 			// every new date log, message, signal and sleep
 			if newDate {
-				// log renewal
-				log.Printf(RenewalLog)
-				// send summary
-				for _, s := range summary {
-					if s == "" {
-						break
-					}
-					msg := tgbotapi.NewMessage(ChatID, s)
-					for {
-						_, err := bot.Send(msg)
-						if err != nil {
-							log.Println(err)
-							time.Sleep(FiveSeconds)
-						} else {
-							break
-						}
-					}
-					time.Sleep(Second)
-				}
-				// send renewal signal
-				reload <- true
+				newDateCh <- true
+				reloadCh <- true
 				time.Sleep(Minute)
 			}
 			// record date info
 			pDay, pMonth, pYear = day, month, year
 			time.Sleep(Second)
 		}
-	}(reload)
+	}(newDateCh, reloadCh)
+	// handle new date
+	go func(newDateCh <-chan bool) {
+		select {
+		case <- newDateCh:
+			// log renewal
+			log.Printf(RenewalLog)
+			// send all summaries
+			for _, summary := range summaries {
+				if summary != "" {
+					sendMessage(bot, ChatID, summary)
+				}
+				time.Sleep(Second)
+			}
+		}
+	}(newDateCh)
 	select {}
 }
