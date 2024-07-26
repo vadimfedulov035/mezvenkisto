@@ -23,7 +23,7 @@ const TotalJSON = "data_total.json"
 // maximum number of speakers
 const SpeakersMaxNum = 10
 // time period log messages
-const Dayg = "New day %02d/%02d/%02d has come.\n"
+const DayLog = "New day %02d/%02d/%02d has come.\n"
 const MonthLog = "New month %02d/%02d has come.\n"
 const YearLog = "New year %02d has come.\n"
 const RenewalLog = "Renewal.\n"
@@ -221,7 +221,7 @@ func updateDuration(upd Upd, durations map[string]uint32, duration *uint32) {
 	name := upd.Name
 	durationU := upd.DurationU
 	// update duration and log
-	durationOld := duration
+	durationOld := *duration
 	*duration += durationU
 	info = fmt.Sprintf("%d+%d=%d", durationOld, durationU, *duration)
 	// update durations and log
