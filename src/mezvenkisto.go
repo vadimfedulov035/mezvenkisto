@@ -30,9 +30,9 @@ const RenewalLog = "Renewal.\n"
 // hashtag
 const Hashtag = "#mezvenko"
 // basic date info to show
-const DayTemplate = "%02d/%02d/%02d:"
-const MonthTemplate = "%02d/%02d:"
-const YearTemplate = "%02d:"
+const DayDate = "%02d/%02d/%02d:"
+const MonthDate = "%02d/%02d:"
+const YearDate = "%02d:"
 // compact durations
 const Second = time.Second
 const FiveSeconds = 5 * time.Second
@@ -52,7 +52,7 @@ type InitConf struct {
 	ChatID int64
 }
 
-type Update struct {
+type Upd struct {
 	Name string
 	DurationU uint32
 }
@@ -67,12 +67,11 @@ type DurationData struct {
 	Duration uint32
 }
 
-type DateInfo struct {
-	Year      int
-	Month     int
-	MonthName string
-	Day       int
-}
+//                      ____ ___  _   _ _____ ___ ____                      //
+//                     / ___/ _ \| \ | |  ___|_ _/ ___|                     //
+//                    | |  | | | |  \| | |_   | | |  _                      //
+//                    | |__| |_| | |\  |  _|  | | |_| |                     //
+//                     \____\___/|_| \_|_|   |___\____|                     //
 
 // load init data from config
 func loadInitConf(conf string) (string, int64) {
@@ -120,6 +119,17 @@ func saveConf(conf string, durations map[string]uint32, duration uint32) {
 	os.WriteFile(conf, jsonData, 0644)
 }
 
+// reset config data
+func resetConf(conf string) {
+	// log reset end
+	defer log.Printf("%s <- 0\n", conf)
+	// set data to zero
+	durations := make(map[string]uint32)
+	var duration uint32 = 0
+	// save with zero-data
+	saveConf(conf, durations, duration)
+}
+
 // update one config from another config (increment)
 func updateConf(conf string, confU string) {
 	// get new and old conf data
@@ -134,22 +144,37 @@ func updateConf(conf string, confU string) {
 	saveConf(confU, durationsOld, durationOld)
 }
 
-// reset config data
-func resetConf(conf string) {
-	// log reset end
-	defer log.Printf("%s <- 0\n", conf)
-	// set data to zero
-	durations := make(map[string]uint32)
-	var duration uint32 = 0
-	// save with zero-data
-	saveConf(conf, durations, duration)
-}
-
-// upload one config to another (update + reset)
-func uploadConf(conf string, confU string) {
+// update configs related to period
+func updatePeriod(period string) {
+	// get period to update
+	periodsU := map[string]string{
+		"day": "month",
+		"month": "year",
+		"year": "total",
+	}
+	periodU := periodsU[period]
+	// get config to reset and config to update
+	confs := map[string]string{
+		"day": DayJSON,
+		"month": MonthJSON,
+		"year": YearJSON,
+		"total": TotalJSON,
+	}
+	conf, confU := confs[period], confs[periodU]
+	// log update
+	log.Printf("%s update […]\n", period)
+	defer log.Printf("%s -> %s [✓]\n", conf, confU)
+	defer log.Printf("%s update [✓]\n", period)
+	// update and reset configs
 	updateConf(conf, confU)
 	resetConf(conf)
 }
+
+//                    _   _ ____  ____    _  _____ _____                    //
+//                   | | | |  _ \|  _ \  / \|_   _| ____|                   //
+//                   | | | | |_) | | | |/ _ \ | | |  _|                     //
+//                   | |_| |  __/| |_| / ___ \| | | |___                    //
+//                    \___/|_|   |____/_/   \_\_| |_____|                   //
 
 // get name from message
 func getName(msg *tgbotapi.Message) string {
@@ -167,75 +192,55 @@ func getName(msg *tgbotapi.Message) string {
 }
 
 // get duration update
-func getUpdate(msg *tgbotapi.Message) Update {
+func getUpdate(msg *tgbotapi.Message) Upd {
+    var upd Upd
 	name := getName(msg)
-	d := 0
+	durationU := 0
 	if msg.Voice != nil {
-		d = msg.Voice.Duration
+		durationU = msg.Voice.Duration
 	} else if msg.VideoNote != nil {
-		d = msg.VideoNote.Duration
+		durationU = msg.VideoNote.Duration
 	} else if msg.Audio != nil {
 		if msg.Caption != "" && strings.Contains(msg.Caption, Hashtag) {
-			d = msg.Audio.Duration
+			durationU = msg.Audio.Duration
 		}
 	} else if msg.Video != nil {
 		if msg.Caption != "" && strings.Contains(msg.Caption, Hashtag) {
-			d = msg.Video.Duration
+			durationU = msg.Video.Duration
 		}
 	}
-	update := Update{
-		Name: name,
-		DurationU: uint32(d),
-	}
-	return update
+	upd.Name = name
+	upd.DurationU = uint32(durationU)
+	return upd
 }
 
-// log update
-func logUpdate(update Update, durations map[string]uint32, duration *uint32) {
-	var info string
+// calc duration based on update
+func updateDuration(upd Upd, durations map[string]uint32, duration *uint32) {
+    var info string
 	// get name and duration update
-	name := update.Name
-	d := update.DurationU
-	// duration
-	durationOld := *duration
-	*duration += d
-	info = fmt.Sprintf("%d+%d=%d", durationOld, d, *duration)
-	// durations
+	name := upd.Name
+	durationU := upd.DurationU
+	// update duration and log
+	durationOld := duration
+	*duration += durationU
+	info = fmt.Sprintf("%d+%d=%d", durationOld, durationU, *duration)
+	// update durations and log
 	if name != "" {
 		dPersonOld := durations[name]
-		durations[name] += d
+		durations[name] += durationU
 		dPerson := durations[name]
 		info += fmt.Sprintf(" from %s", name)
-		info += fmt.Sprintf("[%d+%d=%d]", dPersonOld, d, dPerson)
+		info += fmt.Sprintf("[%d+%d=%d]", dPersonOld, durationU, dPerson)
 	}
 	// log renewal end
 	log.Println(info)
 }
 
-// convert duration to hours, minutes, seconds
-func calcTime(duration uint32) [3]int {
-	durationTime := time.Duration(duration) * time.Second
-	hours := int(durationTime.Hours())
-	minutes := int(durationTime.Minutes()) % 60
-	seconds := int(durationTime.Seconds()) % 60
-	time := [3]int{hours, minutes, seconds}
-	return time
-}
-
-// decide what video should be shown (if any)
-func getVideo(duration uint32) string {
-	var video string
-	time := calcTime(duration)
-	hours := time[0]
-	if hours >= 27 {
-		video = Video27H
-	} else if hours >= 2 {
-		video = Video2H
-	} else if hours >= 1 {
-		video = Video1H
-	}
-	return video
-}
+//         ____  _   _ __  __ __  __    _    ____  ___ ____  _____          //
+//        / ___|| | | |  \/  |  \/  |  / \  |  _ \|_ _/ ___|| ____|         //
+//        \___ \| | | | |\/| | |\/| | / _ \ | |_) || |\___ \|  _|           //
+//         ___) | |_| | |  | | |  | |/ ___ \|  _ < | | ___) | |___          //
+//        |____/ \___/|_|  |_|_|  |_/_/   \_\_| \_\___|____/|_____|         //
 
 // convert duration to human readable format
 func getSummary(duration uint32) string {
@@ -281,30 +286,50 @@ func getSummaryPersonal(durations map[string]uint32) string {
 	return summaryPersonal
 }
 
+// convert duration to hours, minutes, seconds
+func calcTime(duration uint32) [3]int {
+	durationTime := time.Duration(duration) * time.Second
+	hours := int(durationTime.Hours())
+	minutes := int(durationTime.Minutes()) % 60
+	seconds := int(durationTime.Seconds()) % 60
+	time := [3]int{hours, minutes, seconds}
+	return time
+}
+
+// decide what video should be shown (if any)
+func getVideo(duration uint32) string {
+	var video string
+	time := calcTime(duration)
+	hours := time[0]
+	if hours >= 27 {
+		video = Video27H
+	} else if hours >= 2 {
+		video = Video2H
+	} else if hours >= 1 {
+		video = Video1H
+	}
+	return video
+}
+
 func getDate(period string, t time.Time) string {
 	// initialise variables
 	var date string
-	templates := map[string]string{
-		"day": DayTemplate,
-		"month": MonthTemplate,
-		"year": YearTemplate,
-	}
 	day, month, year := t.Day(), int(t.Month()), t.Year()
 	// print date according to period
 	switch period {
 		case "day":
-			date = fmt.Sprintf(templates[period], day, month, year)
+			date = fmt.Sprintf(DayDate, day, month, year)
 		case "month":
-			date = fmt.Sprintf(templates[period], month, year)
+			date = fmt.Sprintf(MonthDate, month, year)
 		case "year":
-			date = fmt.Sprintf(templates[period], year)
+			date = fmt.Sprintf(YearDate, year)
 	}
 	return date
 }
 
-// get summary
+// get complete summary
 func summarise(period string, t time.Time) string {
-	// initialise variables
+	// get config to load
 	confs := map[string]string{
 		"day": DayJSON,
 		"month": MonthJSON,
@@ -317,76 +342,12 @@ func summarise(period string, t time.Time) string {
 	// make durations human readable summaries
 	summaryT := getSummary(duration)
 	summaryP := getSummaryPersonal(durations)
-	// decide what video should be shown (if any)
+	// get video to show (if any)
 	video := getVideo(duration)
+    // get date to show
 	date := getDate(period, t)
 	summary := date + " " + summaryT + "\n\n" + summaryP + "\n" + video
 	return summary
-}
-
-
-// handle duration update
-func handleDurationU(bot *tgbotapi.BotAPI, mutex *sync.Mutex, upd <-chan bool) {
-	// load previous day data
-	conf := DayJSON
-	mutex.Lock()
-	durations, duration := loadConf(conf)
-	mutex.Unlock()
-	// set bot
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-	updates := bot.GetUpdatesChan(u)
-	// get updates
-	for update := range updates {
-		select {
-		// every signal update day config
-		case <- upd:
-			log.Printf(RenewalLog)
-			mutex.Lock()
-			durations, duration = loadConf(conf)
-			mutex.Unlock()
-		// every message update duration
-		default:
-			msg := update.Message
-			if msg != nil {
-				u := getUpdate(msg)
-				if u.DurationU > 0 {
-					mutex.Lock()
-					saveConf(conf, durations, duration)
-					mutex.Unlock()
-					logUpdate(u, durations, &duration)
-				}
-			}
-		}
-	}
-}
-
-// aid function
-func updatePeriod(mutex *sync.Mutex, period string) string {
-	// get period to update
-	periodsU := map[string]string{
-		"day": "month",
-		"month": "year",
-		"year": "total",
-	}
-	periodU := periodsU[period]
-	// get config and config to update
-	confs := map[string]string{
-		"day": DayJSON,
-		"month": MonthJSON,
-		"year": YearJSON,
-		"total": TotalJSON,
-	}
-	conf, confU := confs[period], confs[periodU]
-	// log update period
-	log.Printf("%s update […]\n", period)
-	defer log.Printf("%s -> %s [✓]\n", conf, confU)
-	defer log.Printf("%s update [✓]\n", period)
-	// update config via upload
-	mutex.Lock()
-	uploadConf(conf, confU)
-	mutex.Unlock()
-	return conf
 }
 
 // set midnight ticker and return its pointer
@@ -400,37 +361,83 @@ func setMidnightTicker(t time.Time) *time.Ticker {
 	return ticker
 }
 
+//         ____  ___  ____   ___  _   _ _____ ___ _   _ _____ ____          //
+//        / ___|/ _ \|  _ \ / _ \| | | |_   _|_ _| \ | | ____/ ___|         //
+//       | |  _| | | | |_) | | | | | | | | |  | ||  \| |  _| \___ \         //
+//       | |_| | |_| |  _ <| |_| | |_| | | |  | || |\  | |___ ___) |        //
+//        \____|\___/|_| \_\\___/ \___/  |_| |___|_| \_|_____|____/         //
+
+// handle duration update
+func handleDurationU(bot *tgbotapi.BotAPI, mutex *sync.Mutex, r <-chan bool) {
+	// load previous day data
+	conf := DayJSON
+	mutex.Lock()
+	durations, duration := loadConf(conf)
+	mutex.Unlock()
+	// set bot
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+	updates := bot.GetUpdatesChan(u)
+	// get updates
+	for update := range updates {
+		select {
+		// every signal update day config
+		case <- r:
+			log.Printf(RenewalLog)
+			mutex.Lock()
+			durations, duration = loadConf(conf)
+			mutex.Unlock()
+		// every message update duration
+		default:
+			msg := update.Message
+			if msg != nil {
+				upd := getUpdate(msg)
+				if upd.DurationU > 0 {
+					updateDuration(upd, durations, &duration)
+					mutex.Lock()
+					saveConf(conf, durations, duration)
+					mutex.Unlock()
+				}
+			}
+		}
+	}
+}
+
 // handle period update
-func handlePeriodU(mutex *sync.Mutex, upd chan<- bool, sum chan<- string) {
+func handlePeriodU(mutex *sync.Mutex, r chan<- bool, s chan<- string) {
 	// get timestamp
 	now := time.Now()
 	ticker := setMidnightTicker(now)
-	defer ticker.Stop()
 	for {
 		select {
-		// every midnight update and reset configs with summarisation
+		// every day summarise, update and reset configs
 		case <-ticker.C:
+            mutex.Lock()
 			summaries := [3]string{"", "", ""}
-			// it's always new day every midnight (new day)
-			conf := updatePeriod(mutex, "day")
-			summaries[0] = summarise(conf, now)
-			// check if it's the first day of the month (new month)
-			if now.Day() == 1 {
-				conf := updatePeriod(mutex, "month")
-				summaries[1] = summarise(conf, now)
+			// new day
+			summaries[0] = summarise("day", now)
+			updatePeriod("day")
+			// new month
+            firstDay := (now.Day() == 1)
+			if firstDay {
+				summaries[1] = summarise("month", now)
+				updatePeriod("month")
 			}
-			// check if it's the first day of the year (new year)
-			if int(now.Month()) == 1 && now.Day() == 1 {
-				conf := updatePeriod(mutex, "year")
-				summaries[2] = summarise(conf, now)
+			// new year
+            firstMonth := (int(now.Month()) == 1)
+			if firstMonth && firstDay {
+				summaries[2] = summarise("year", now)
+                updatePeriod("year")
 			}
-			// finally send summary and update signal
+            mutex.Unlock()
+			// send summary
 			for _, summary := range summaries {
 				if summary != "" {
-					sum <- summary
+					s <- summary
 				}
 			}
-			upd <- true
+            // reload config
+			r <- true
 			ticker.Stop()
 			now = time.Now()
 			ticker = setMidnightTicker(now)
@@ -438,26 +445,21 @@ func handlePeriodU(mutex *sync.Mutex, upd chan<- bool, sum chan<- string) {
 	}
 }
 
-// send message in any case
-func sendMessage(bot *tgbotapi.BotAPI, ChatID int64, text string) {
-	msg := tgbotapi.NewMessage(ChatID, text)
-	for {
-		_, err := bot.Send(msg)
-		if err != nil {
-			log.Println(err)
-			time.Sleep(FiveSeconds)
-		} else {
-			break
-		}
-	}
-}
-
 // handle summary
-func handleSummary(bot *tgbotapi.BotAPI, ChatID int64, sum <-chan string) {
+func handleSummary(bot *tgbotapi.BotAPI, ChatID int64, s <-chan string) {
 	for {
 		select {
-		case summary := <- sum:
-			sendMessage(bot, ChatID, summary)
+		case summary := <- s:
+            msg := tgbotapi.NewMessage(ChatID, summary)
+            for {
+                _, err := bot.Send(msg)
+                if err != nil {
+                    log.Println(err)
+                    time.Sleep(FiveSeconds)
+                } else {
+                    break
+                }
+            }
 			time.Sleep(Second)
 		}
 	}
@@ -470,14 +472,15 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	// initalise mutex
+	// mutex
 	var mutex sync.Mutex
-	// initalize channels
-	upd := make(chan bool)
-	sum := make(chan string, 3)
+	// reload channel
+	r := make(chan bool)
+    // summary channel
+	s := make(chan string, 3)
 	// start goroutines
-	go handleDurationU(bot, &mutex, upd)
-	go handlePeriodU(&mutex, upd, sum)
-	go handleSummary(bot, ChatID, sum)
+	go handleDurationU(bot, &mutex, r)
+	go handlePeriodU(&mutex, r, s)
+	go handleSummary(bot, ChatID, s)
 	select {}
 }
