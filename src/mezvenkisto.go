@@ -237,7 +237,7 @@ func getSummary(duration uint32) string {
 	// for hours 00h 00m 00s
 	if hours != 0 {
 		summary = fmt.Sprintf(SummaryHr, hours, minutes, seconds)
-		// for minutes 00m 00s
+    // for minutes 00m 00s
 	} else if minutes != 0 {
 		summary = fmt.Sprintf(SummaryMin, minutes, seconds)
 		// for seconds 00s
@@ -361,8 +361,7 @@ func handleDurationU(bot *tgbotapi.BotAPI, mutex *sync.Mutex, r <-chan bool) {
 			mutex.Lock()
 			durations, duration = loadConf(conf)
 			mutex.Unlock()
-
-			// every message update duration
+        // every message update duration
 		case update := <-updates:
 			msg := update.Message
 			if msg != nil {
@@ -418,9 +417,10 @@ func handlePeriodU(mutex *sync.Mutex, r chan<- bool, s chan<- string) {
 		}
 
 		// send summary
-		for _, summary := range summaries {
+		for i, summary := range summaries {
 			if summary != "" {
 				s <- summary
+                summaries[i] = ""
 			}
 		}
 
